@@ -30,8 +30,12 @@ class CompanyAgent:
         self.expected_deficit = self.expected_emission - self.allowance
 
         self.expected_market_price = (sell_price+buy_price)/2
+        
+        self.sale_counter = 0
+        self.buy_counter = 0
         self.count = 0
         self.state = "idle"
+        self.trade_price = self.expected_market_price
 
 
     def update_emission_rate(self):
@@ -51,9 +55,10 @@ class CompanyAgent:
         """
         Update the expected emission for the year.
         """
-        self.expected_emission = self.total_emission/self.day * 365
+        self.expected_emission = math.ceil((self.total_emission/self.day * 365)-1e-9)
         self.day += 1
-        self.expected_deficit = self.expected_emission - self.allowance
+        self.expected_deficit = int(self.expected_emission - self.allowance)
+        #print(self.expected_deficit)
 
     def update_market_position(self):
         """
@@ -63,30 +68,59 @@ class CompanyAgent:
             #buy
             self.count = math.ceil(self.expected_deficit)
             self.state = "buy"
-        elif self.expected_deficit < -1:
+            self.trade_price = min(self.expected_market_price, self.max_buy_price)
+        elif self.expected_deficit <= -1:
             #sell
             self.count = (-1)*math.ceil(self.expected_deficit)
             self.state = "sell"
+            self.trade_price = max(self.expected_market_price, self.min_sell_price)
         else:
             self.state = "idle"
             self.count = 0
+    
+    def sell_allowance(self, price):
+        self.allowance -= 1
+        self.count -= 1
+        self.sale_counter += 1
+
+
+    def buy_allowance(self, price):
+        self.allowance += 1
+        self.count -= 1
+        self.buy_counter += 1
+        
+
+    def failed_sell(self):
+        self.sale_counter -= 1
+    
+    def failed_buy(self):
+        self.buy_counter -= 1
+
     def update_expected_market_price(self):
-        """
-        Update the expected market price.
-        """
-        new_expected_market_price = (self.min_sell_price + self.max_buy_price) / 2 #TODO: ADD update rule
-        if new_expected_market_price > self.max_buy_price:
-            self.expected_market_price = self.max_buy_price
-        elif new_expected_market_price < self.min_sell_price:
-            self.expected_market_price = self.min_sell_price
-        else:
-            self.expected_market_price = new_expected_market_price
+        
+        if self.state == "sell":
+            if self.sale_counter > 0: #successful sales
+                self.expected_market_price += 1
+            elif self.sale_counter < 0: #unsuccessful sales
+                if self.expected_market_price > self.min_sell_price: #only reduce when min price was not used
+                    self.expected_market_price -= 1
+
+        elif self.state == "buy":
+            if self.buy_counter > 0: #successful buys
+                self.expected_market_price -= 1
+            elif self.buy_counter < 0: #unsuccessful buys
+                if self.expected_market_price < self.max_buy_price: #only increase when max price was not used
+                    self.expected_market_price += 1
+
+        self.buy_counter = 0
+        self.sale_counter = 0
+        return
 
     def update_agent(self):
         """
         Update the agent.
         """
-
+        self.update_expected_market_price()
         self.update_emission_rate()
         self.track_emission()
         self.update_expected_emission()

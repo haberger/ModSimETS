@@ -11,22 +11,22 @@ if __name__ == "__main__":
     agents = []
     for i in range(100):
         expected_emission = np.random.uniform(80, 120)
-        initial_allowance = np.random.uniform(80, 110)
+        initial_allowance = np.random.uniform(80, 120)
         sell_price = np.random.uniform(0, 100)
         buy_price = np.random.uniform(0, 100)
         agents.append(CompanyAgent(expected_emission, initial_allowance, sell_price, buy_price))
 
     for i in range(100):
         expected_emission = np.random.uniform(80, 120)
-        initial_allowance = np.random.uniform(90, 120)
+        initial_allowance = np.random.uniform(80, 120)
         sell_price = np.random.uniform(0, 100)
         buy_price = np.random.uniform(0, 100)
         agents.append(CompanyAgent(expected_emission, initial_allowance, sell_price, buy_price))
 
 
-    env = Environment(5, agents)
+    env = Environment(5, agents, mode="seller_preferred")
     for i in range(100):
-        env.update2()
+        env.update()
 
     
     #plot hist of trades

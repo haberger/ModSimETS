@@ -10,15 +10,15 @@ if __name__ == "__main__":
     # define 100 agents with random expected emission, initial allowance, sell price and buy price
     agents = []
     for i in range(100):
-        expected_emission = np.random.uniform(80, 120)
-        initial_allowance = np.random.uniform(80, 120)
+        expected_emission = np.random.uniform(800, 1200)
+        initial_allowance = np.random.uniform(800, 1200)
         sell_price = np.random.uniform(0, 100)
         buy_price = np.random.uniform(0, 100)
         agents.append(CompanyAgent(expected_emission, initial_allowance, sell_price, buy_price))
 
     for i in range(100):
-        expected_emission = np.random.uniform(80, 120)
-        initial_allowance = np.random.uniform(80, 120)
+        expected_emission = np.random.uniform(800, 1200)
+        initial_allowance = np.random.uniform(800, 1200)
         sell_price = np.random.uniform(0, 100)
         buy_price = np.random.uniform(0, 100)
         agents.append(CompanyAgent(expected_emission, initial_allowance, sell_price, buy_price))

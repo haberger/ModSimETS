@@ -51,12 +51,6 @@ class Environment:
                 plt.legend()
                 plt.show()
 
-            plt.hist(self.sells, bins=10, label="Sellers")
-            plt.hist(self.buys, bins=10, label="Buyers")
-            plt.axvline(self.market_price, color="black", linestyle="--", label="Market Price")
-            plt.legend()
-            plt.show()
-    
     def get_trades_plot(self):
         #plot buyers and sellers
         plt.scatter(range(len(self.daily_buyers)), [agent.trade_price for agent in self.daily_buyers], label="Buyers")

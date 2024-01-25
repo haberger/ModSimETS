@@ -71,13 +71,15 @@ class Environment:
         plt.show()
 
     def trade(self, buyer, seller, trade_price):
+        trade_amount = min(buyer.count, seller.count)
         price = trade_price
-        self.trade_history_daily.append(price)
+        self.trade_history_daily.append((price, trade_amount)) # TODO UPD TRADE HISTORY DAILY STUFF
 
-        buyer.buy_allowance(price)
-        seller.sell_allowance(price)
+        buyer.buy_allowance(price, trade_amount)
+        seller.sell_allowance(price, trade_amount)
         self.trade_hist_dict["day"].append(self.agents[0].day)
         self.trade_hist_dict["trade_price"].append(price)
+        self.trade_hist_dict["trade_amount"].append(trade_amount)
 
     def update_seller_preferred(self, plot=False):
         buyer_heap = []
@@ -86,21 +88,30 @@ class Environment:
         for agent in self.agents:
             agent.update_agent()
             if agent.state == "sell":
-                self.daily_offers += [agent.trade_price] * agent.count
-                for c in range(agent.count):
-                    seller_list.append(agent)
+                # self.daily_offers += [agent.trade_price] * agent.count
+                # for c in range(agent.count):
+                #     seller_list.append(agent)
+                self.daily_offers.append((agent.trade_price, agent.count))
+                seller_list.append(agent)
             elif agent.state == "buy":
-                self.daily_demands += [agent.trade_price] * agent.count
-                for c in range(agent.count):
-                    heapq.heappush(buyer_heap, (-agent.trade_price, agent))    
+                # self.daily_demands += [agent.trade_price] * agent.count
+                # for c in range(agent.count):
+                #     heapq.heappush(buyer_heap, (-agent.trade_price, agent))    
+                self.daily_demands.append((agent.trade_price, agent.count))
+                heapq.heappush(buyer_heap, (-agent.trade_price, agent))
 
         random.shuffle(seller_list)
         for seller in seller_list:
-            if len(buyer_heap) > 0 and seller.trade_price <= (-1)*buyer_heap[0][0]:
+            # if len(buyer_heap) > 0 and seller.trade_price <= (-1)*buyer_heap[0][0] and seller.count > 0:
+            while len(buyer_heap) > 0 and seller.trade_price <= (-1)*buyer_heap[0][0] and seller.count > 0:
                 trade_price, buyer = heapq.heappop(buyer_heap)
                 self.trade(buyer, seller, trade_price=buyer.trade_price)
-            else:
+            
+            if seller.count > 0:
                 seller.failed_sell()
+
+            if buyer.count > 0:
+                heapq.heappush(buyer_heap, (-buyer.trade_price, buyer))
             
         for buyer in buyer_heap:
             buyer[1].failed_buy()

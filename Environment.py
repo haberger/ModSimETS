@@ -25,7 +25,7 @@ class Environment:
         self.trade_history_daily = []
         self.market_price_history = []
 
-        self.trade_hist_dict = {"day":[], "trade_price":[]}
+        self.trade_hist_dict = {"day":[], "trade_price":[], "trade_amount":[]}
         self.market_hist_dict = {"day":[], "market_price":[]}
         self.agent_hist_dict = {"day":[], "deficit":[], "state":[], "count":[]}
 
@@ -35,7 +35,7 @@ class Environment:
             self.update = self.update_seller_preferred
         else:
             raise Exception("Mode not supported")
-    def cartesian_product(*arrays):
+    def cartesian_product(self, *arrays):
         la = len(arrays)
         dtype = np.result_type(*arrays)
         arr = np.empty([len(a) for a in arrays] + [la], dtype=dtype)
@@ -51,9 +51,9 @@ class Environment:
         demands = None
         if shape != 0:
             demands = self.daily_demands[:shape, :]
-            demands[:1] = np.cumsum(self.daily_demands[:, 1])
+            demands[:, 1] = np.cumsum(demands[:, 1])
             offers = self.daily_offers[:shape, :]
-            offers[:1] = np.cumsum(self.daily_offers[:, 1])
+            offers[:, 1] = np.cumsum(offers[:, 1])
 
             prices = self.cartesian_product(offers[:, 0], demands[:, 0])
             quantities = self.cartesian_product(offers[:, 1], demands[:, 1])
@@ -61,12 +61,8 @@ class Environment:
             if len(potential_intersection_indices) > 0:
                 intersection_idx = potential_intersection_indices[-1]
                 intersection_price = (prices[intersection_idx, 0] + prices[intersection_idx, 1]) / 2
-                self.market_price = intersection_price
-                self.market_hist_dict["market_price"].append(intersection_price)
-            else:
-                self.market_hist_dict["market_price"].append(self.market_price)
-        else:
-            self.market_hist_dict["market_price"].append(self.market_price)
+                self.market_price = intersection_price[0]
+        self.market_hist_dict["market_price"].append(self.market_price)
         self.market_hist_dict["day"].append(self.agents[0].day)
         if plot:
             if demands is not None: #self.agents[0].day % 10 == 2:
@@ -124,6 +120,7 @@ class Environment:
 
         random.shuffle(seller_list)
         for seller in seller_list:
+            buyer = None
             # if len(buyer_heap) > 0 and seller.trade_price <= (-1)*buyer_heap[0][0] and seller.count > 0:
             while len(buyer_heap) > 0 and seller.trade_price <= (-1)*buyer_heap[0][0] and seller.count > 0:
                 trade_price, buyer = heapq.heappop(buyer_heap)
@@ -132,7 +129,7 @@ class Environment:
             if seller.count > 0:
                 seller.failed_sell()
 
-            if buyer.count > 0:
+            if buyer is not None and buyer.count > 0:
                 heapq.heappush(buyer_heap, (-buyer.trade_price, buyer))
             
         for buyer in buyer_heap:
@@ -158,6 +155,7 @@ class Environment:
 
         random.shuffle(buyer_list)
         for buyer in buyer_list:
+            seller = None
             while len(seller_heap) > 0 and buyer.trade_price >= seller_heap[0][0] and buyer.count > 0:
                 trade_price, seller = heapq.heappop(seller_heap)
                 self.trade(buyer, seller, trade_price=seller.trade_price)
@@ -165,7 +163,7 @@ class Environment:
             if buyer.count > 0:
                 buyer.failed_buy()
 
-            if seller.count > 0:
+            if seller is not None and seller.count > 0:
                 heapq.heappush(seller_heap, (seller.trade_price, buyer))
             
         for seller in seller_heap:

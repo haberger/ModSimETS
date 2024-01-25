@@ -34,17 +34,32 @@ class Environment:
             self.update = self.update_seller_preferred
         else:
             raise Exception("Mode not supported")
+    def cartesian_product(*arrays):
+        la = len(arrays)
+        dtype = np.result_type(*arrays)
+        arr = np.empty([len(a) for a in arrays] + [la], dtype=dtype)
+        for i, a in enumerate(np.ix_(*arrays)):
+            arr[...,i] = a
+        return arr.reshape(-1, la)
 
     def calculate_market_price(self, plot=False):
         #calc difference but only for the length of the shorter list
         shape = min(len(self.daily_demands), len(self.daily_offers))
         self.daily_demands = np.sort(self.daily_demands)[::-1]
         self.daily_offers = np.sort(self.daily_offers)
+        demands = None
         if shape != 0:
-            difference = self.daily_demands[:shape] - self.daily_offers[:shape]
-            if sum(difference <= 0) > 0:
-                intersection_idx = np.argwhere(difference <= 0)[0][0]
-                intersection_price = (self.daily_offers[intersection_idx] + self.daily_demands[intersection_idx]) / 2
+            demands = self.daily_demands[:shape, :]
+            demands[:1] = np.cumsum(self.daily_demands[:, 1])
+            offers = self.daily_offers[:shape, :]
+            offers[:1] = np.cumsum(self.daily_offers[:, 1])
+
+            prices = self.cartesian_product(offers[:, 0], demands[:, 0])
+            quantities = self.cartesian_product(offers[:, 1], demands[:, 1])
+            potential_intersection_indices = np.argwhere((prices[:, 0] <= prices[:, 1]) & (quantities[:, 0] < quantities[:, 1]))
+            if len(potential_intersection_indices) > 0:
+                intersection_idx = potential_intersection_indices[-1]
+                intersection_price = (prices[intersection_idx, 0] + prices[intersection_idx, 1]) / 2
                 self.market_price = intersection_price
                 self.market_hist_dict["market_price"].append(intersection_price)
             else:
@@ -53,12 +68,11 @@ class Environment:
             self.market_hist_dict["market_price"].append(self.market_price)
         self.market_hist_dict["day"].append(self.agents[0].day)
         if plot:
-            if True: #self.agents[0].day % 10 == 2:
+            if demands is not None: #self.agents[0].day % 10 == 2:
                 plt.figure()
-                plt.plot(range(len(self.daily_demands)), self.daily_demands, label="Demand")
-                plt.plot(range(len(self.daily_offers)), self.daily_offers, label="Supply")
-                if shape != 0 and sum(difference <= 0) > 0:
-                    plt.axhline(intersection_price, color="black", linestyle="--", label="Market Price")
+                plt.step(demands[:, 1], demands[:, 0], label="Demand")
+                plt.step(offers[:, 1], offers[:, 0], label="Supply")
+                plt.axhline(self.market_price, color="black", linestyle="--", label="Market Price")
                 plt.legend()
                 plt.show()
 
@@ -128,21 +142,23 @@ class Environment:
         for agent in self.agents:
             agent.update_agent()
             if agent.state == "buy":
-                self.daily_demands += [agent.trade_price] * agent.count
-                for c in range(agent.count):
-                    buyer_list.append(agent)
+                self.daily_demands.append((agent.trade_price, agent.count))
+                buyer_list.append(agent)
             elif agent.state == "sell":
-                self.daily_offers += [agent.trade_price] * agent.count
-                for c in range(agent.count):
-                    heapq.heappush(seller_heap, (agent.trade_price, agent))
+                self.daily_offers.append((agent.trade_price, agent.count))
+                heapq.heappush(seller_heap, (agent.trade_price, agent))
 
         random.shuffle(buyer_list)
         for buyer in buyer_list:
-            if len(seller_heap) > 0 and buyer.trade_price >= seller_heap[0][0]:
+            while len(seller_heap) > 0 and buyer.trade_price >= seller_heap[0][0] and buyer.count > 0:
                 trade_price, seller = heapq.heappop(seller_heap)
                 self.trade(buyer, seller, trade_price=seller.trade_price)
-            else:
+            
+            if buyer.count > 0:
                 buyer.failed_buy()
+
+            if seller.count > 0:
+                heapq.heappush(seller_heap, (seller.trade_price, buyer))
             
         for seller in seller_heap:
             seller[1].failed_sell()

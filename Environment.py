@@ -15,6 +15,7 @@ class Environment:
         Parameters:
         - initial_market_price (float): Initial price for allowances.
         """
+        print("hisst")
         self.initial_market_price = initial_market_price
         self.market_price = self.initial_market_price
         self.agents = agents
@@ -26,7 +27,7 @@ class Environment:
 
         self.trade_hist_dict = {"day":[], "trade_price":[]}
         self.market_hist_dict = {"day":[], "market_price":[]}
-
+        self.agent_hist_dict = {"day":[], "deficit":[], "state":[], "count":[]}
 
         if mode == "buyer_preferred":
             self.update = self.update_buyer_preferred
@@ -79,11 +80,18 @@ class Environment:
         self.trade_hist_dict["day"].append(self.agents[0].day)
         self.trade_hist_dict["trade_price"].append(price)
 
+    def track_agent_state(self,agent):
+        self.agent_hist_dict["day"].append(agent.day)
+        self.agent_hist_dict["deficit"].append(agent.expected_deficit)
+        self.agent_hist_dict["state"].append(agent.state)
+        self.agent_hist_dict["count"].append(agent.count)
+
     def update_seller_preferred(self, plot=False):
         buyer_heap = []
         seller_list = []    
 
         for agent in self.agents:
+            self.track_agent_state(agent)
             agent.update_agent()
             if agent.state == "sell":
                 self.daily_offers += [agent.trade_price] * agent.count
@@ -106,7 +114,6 @@ class Environment:
             buyer[1].failed_buy()
 
         self.calculate_market_price(plot=plot)
-
         self.daily_offers = []
         self.daily_demands = []
 
@@ -115,6 +122,7 @@ class Environment:
         buyer_list = []    
 
         for agent in self.agents:
+            self.track_agent_state(agent)
             agent.update_agent()
             if agent.state == "buy":
                 self.daily_demands += [agent.trade_price] * agent.count

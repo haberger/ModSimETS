@@ -46,8 +46,8 @@ class Environment:
     def calculate_market_price(self, plot=False):
         #calc difference but only for the length of the shorter list
         shape = min(len(self.daily_demands), len(self.daily_offers))
-        self.daily_demands = np.sort(self.daily_demands)[::-1]
-        self.daily_offers = np.sort(self.daily_offers)
+        self.daily_demands = np.sort(self.daily_demands, axis=0)[::-1]
+        self.daily_offers = np.sort(self.daily_offers, axis=0)
         demands = None
         if shape != 0:
             demands = self.daily_demands[:shape, :]
@@ -66,6 +66,7 @@ class Environment:
         self.market_hist_dict["day"].append(self.agents[0].day)
         if plot:
             if demands is not None: #self.agents[0].day % 10 == 2:
+                print("hi")
                 plt.figure()
                 plt.step(demands[:, 1], demands[:, 0], label="Demand")
                 plt.step(offers[:, 1], offers[:, 0], label="Supply")

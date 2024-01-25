@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 class CompanyAgent:
-    def __init__(self, expected_emission, initial_allowance, min_sell_price, max_buy_price, expected_emission_noise=0.1, emission_rate_noise=0.01):
+    def __init__(self, expected_emission, initial_allowance, min_sell_price, max_buy_price, expected_emission_noise=0.1, emission_rate_noise=0.01, activate_abatement=True):
         """
         Initialize a Company Agent.
 
@@ -21,10 +21,10 @@ class CompanyAgent:
         self.expected_emission = self.initial_exepected_emission
         self.allowance = self.initial_allowance
 
-        self.emission_rate = expected_emission / 365.0 + np.random.normal(scale=self.expected_emission_noise)  # Add some noise
+        self.emission_rate = (expected_emission + np.random.normal(scale=self.expected_emission_noise)) / 365.0   # Add some noise
 
         self.total_emission = 0
-        self.day = 1
+        self.day = 0
         self.expected_deficit = self.expected_emission - self.allowance
 
         self.expected_market_price = (min_sell_price+max_buy_price)/2
@@ -35,8 +35,10 @@ class CompanyAgent:
         self.state = "idle"
         self.trade_price = self.expected_market_price
 
-        self.abatement_costs = self.init_abatement_costs()
-        self.abatement_cost_per_ton = self.abatement_costs[0] / 365
+        self.abatement_costs = self.init_abatement_costs()      #cost to reduce rate by 1 ton -> 
+        if not activate_abatement:
+            self.abatement_costs = [np.inf]
+        self.abatement_cost_per_ton = self.abatement_costs[0] / 365.0
 
         self.min_sell_price = min_sell_price
         self.max_buy_price = max_buy_price
@@ -70,14 +72,14 @@ class CompanyAgent:
         """
         Update the abatements.
         """
-        self.abatement_cost_per_ton = self.abatement_costs[0] / self.day
+        self.abatement_cost_per_ton = self.abatement_costs[0] / (366 - self.day) #first element is always the current abatement cost -> if taken pop
         #self.max_buy_price = min(self.max_buy_price, self.abatement_cost_per_ton)
 
     def update_expected_emission(self):
         """
         Update the expected emission for the year.
         """
-        self.expected_emission = math.ceil((self.total_emission/self.day * 365)-1e-9)
+        self.expected_emission = math.ceil((self.total_emission/self.day * 365)-1e-9) #TODO: maybe just look at past n days, might have more relevance
         self.expected_deficit = int(self.expected_emission - self.allowance)
         #print(self.expected_deficit)
 
@@ -89,14 +91,15 @@ class CompanyAgent:
         if self.expected_deficit > 0:
             #buy or abate
             if self.expected_market_price > self.abatement_cost_per_ton:
+                print("abate")
                 self.state = "idle"
                 self.count = 0
                 self.abatement_costs.pop(0)
                 self.emission_rate -= 1
-
-            self.count = math.ceil(self.expected_deficit)
-            self.state = "buy"
-            self.trade_price = min(self.expected_market_price, self.max_buy_price)
+            else:
+                self.count = math.ceil(self.expected_deficit)
+                self.state = "buy"
+                self.trade_price = min(self.expected_market_price, self.max_buy_price)
         elif self.expected_deficit <= -1:
             #sell
             self.count = (-1)*math.ceil(self.expected_deficit)
@@ -148,13 +151,13 @@ class CompanyAgent:
         """
         Update the agent.
         """
+        self.day += 1
         self.update_expected_market_price()
         self.update_emission_rate()
         self.update_abatements()
         self.track_emission()
         self.update_expected_emission()
         self.update_market_position()
-        self.day += 1
 
     def __lt__(self, other):
         """

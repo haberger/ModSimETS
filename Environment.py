@@ -21,7 +21,12 @@ class Environment:
 
         self.daily_offers = []
         self.daily_demands = []
-        self.trade_history = []
+        self.trade_history_daily = []
+        self.market_price_history = []
+
+        self.trade_hist_dict = {"day":[], "trade_price":[]}
+        self.market_hist_dict = {"day":[], "market_price":[]}
+
 
         if mode == "buyer_preferred":
             self.update = self.update_buyer_preferred
@@ -41,6 +46,12 @@ class Environment:
                 intersection_idx = np.argwhere(difference <= 0)[0][0]
                 intersection_price = (self.daily_offers[intersection_idx] + self.daily_demands[intersection_idx]) / 2
                 self.market_price = intersection_price
+                self.market_hist_dict["market_price"].append(intersection_price)
+            else:
+                self.market_hist_dict["market_price"].append(self.market_price)
+        else:
+            self.market_hist_dict["market_price"].append(self.market_price)
+        self.market_hist_dict["day"].append(self.agents[0].day)
         if plot:
             if True: #self.agents[0].day % 10 == 2:
                 plt.figure()
@@ -61,12 +72,14 @@ class Environment:
 
     def trade(self, buyer, seller, trade_price):
         price = trade_price
-        self.trade_history.append(price)
+        self.trade_history_daily.append(price)
 
         buyer.buy_allowance(price)
         seller.sell_allowance(price)
+        self.trade_hist_dict["day"].append(self.agents[0].day)
+        self.trade_hist_dict["trade_price"].append(price)
 
-    def update_seller_preferred(self):
+    def update_seller_preferred(self, plot=False):
         buyer_heap = []
         seller_list = []    
 
@@ -92,12 +105,12 @@ class Environment:
         for buyer in buyer_heap:
             buyer[1].failed_buy()
 
-        self.calculate_market_price(plot=True)
+        self.calculate_market_price(plot=plot)
 
         self.daily_offers = []
         self.daily_demands = []
 
-    def update_buyer_preferred(self):    
+    def update_buyer_preferred(self, plot=False):    
         seller_heap = []
         buyer_list = []    
 
@@ -123,7 +136,7 @@ class Environment:
         for seller in seller_heap:
             seller[1].failed_sell()
 
-        self.calculate_market_price(plot=True)
+        self.calculate_market_price(plot=plot)
 
         self.daily_offers = []
         self.daily_demands = []

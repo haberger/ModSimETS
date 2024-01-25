@@ -109,23 +109,23 @@ class CompanyAgent:
             self.state = "idle"
             self.count = 0
     
-    def sell_allowance(self, price):
-        self.allowance -= 1
-        self.count -= 1
-        self.sale_counter += 1
+    def sell_allowance(self, price, trade_amount):
+        self.allowance -= trade_amount
+        self.count -= trade_amount
+        self.sale_counter += trade_amount
 
 
-    def buy_allowance(self, price):
-        self.allowance += 1
-        self.count -= 1
-        self.buy_counter += 1
+    def buy_allowance(self, price, trade_amount):
+        self.allowance += trade_amount
+        self.count -= trade_amount
+        self.buy_counter += trade_amount
         
 
     def failed_sell(self):
-        self.sale_counter -= 1
+        self.sale_counter -= self.count
     
     def failed_buy(self):
-        self.buy_counter -= 1
+        self.buy_counter -= self.count
 
     def update_expected_market_price(self):
         

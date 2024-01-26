@@ -44,15 +44,24 @@ class Environment:
         return arr.reshape(-1, la)
 
     def calculate_market_price(self, plot=False):
-        #calc difference but only for the length of the shorter list
-        shape = min(len(self.daily_demands), len(self.daily_offers))
-        self.daily_demands = np.sort(self.daily_demands, axis=0)[::-1]
-        self.daily_offers = np.sort(self.daily_offers, axis=0)
         demands = None
-        if shape != 0:
-            demands = self.daily_demands[:shape, :]
+        if len(self.daily_demands) > 0 and len(self.daily_offers) > 0:
+            # print(f"Demands: {self.daily_demands[:, 1]}, Offers: {self.daily_offers[:, 1]}")
+
+            self.daily_demands = np.array(self.daily_demands)
+            self.daily_offers = np.array(self.daily_offers)
+            sort_idx = np.argsort(self.daily_demands[:, 0])[::-1]
+            self.daily_demands[:, 0] = self.daily_demands[:, 0][sort_idx]
+            self.daily_demands[:, 1] = self.daily_demands[:, 1][sort_idx]
+
+            # self.daily_offers = np.sort(self.daily_offers, axis=0)
+            sort_idx = np.argsort(self.daily_offers[:, 0])
+            self.daily_offers[:, 0] = self.daily_offers[:, 0][sort_idx]
+            self.daily_offers[:, 1] = self.daily_offers[:, 1][sort_idx]
+
+            demands = self.daily_demands
             demands[:, 1] = np.cumsum(demands[:, 1])
-            offers = self.daily_offers[:shape, :]
+            offers = self.daily_offers
             offers[:, 1] = np.cumsum(offers[:, 1])
 
             prices = self.cartesian_product(offers[:, 0], demands[:, 0])
@@ -83,6 +92,9 @@ class Environment:
         plt.show()
 
     def trade(self, buyer, seller, trade_price):
+        if buyer.count == 0 or seller.count == 0:
+            print(f"Buyer count: {buyer.count}, Seller count: {seller.count}")
+            raise Exception("Cannot trade with empty count")
         trade_amount = min(buyer.count, seller.count)
         price = trade_price
         self.trade_history_daily.append((price, trade_amount)) # TODO UPD TRADE HISTORY DAILY STUFF
@@ -105,7 +117,7 @@ class Environment:
 
         for agent in self.agents:
             self.track_agent_state(agent)
-            agent.update_agent()
+            agent.update_agent(self.market_price)
             if agent.state == "sell":
                 # self.daily_offers += [agent.trade_price] * agent.count
                 # for c in range(agent.count):
@@ -146,7 +158,7 @@ class Environment:
 
         for agent in self.agents:
             self.track_agent_state(agent)
-            agent.update_agent()
+            agent.update_agent(self.market_price)
             if agent.state == "buy":
                 self.daily_demands.append((agent.trade_price, agent.count))
                 buyer_list.append(agent)
@@ -165,7 +177,7 @@ class Environment:
                 buyer.failed_buy()
 
             if seller is not None and seller.count > 0:
-                heapq.heappush(seller_heap, (seller.trade_price, buyer))
+                heapq.heappush(seller_heap, (seller.trade_price, seller))
             
         for seller in seller_heap:
             seller[1].failed_sell()

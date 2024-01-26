@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 class CompanyAgent:
-    def __init__(self, expected_emission, initial_allowance, min_sell_price, max_buy_price, expected_emission_noise=0.1, emission_rate_noise=0.01, activate_abatement=True):
+    def __init__(self, expected_emission, initial_allowance, min_sell_price, max_buy_price, expected_emission_noise=0.1, emission_rate_noise=0.01, activate_abatement=True, advanced_trading=False):
         """
         Initialize a Company Agent.
 
@@ -42,12 +42,16 @@ class CompanyAgent:
 
         self.min_sell_price = min_sell_price
         self.max_buy_price = max_buy_price
+        if advanced_trading:
+            self.update_market_position = self.update_market_position_advanced_training
+        else:
+            self.update_market_position = self.update_market_position_simple
         #self.max_buy_price = min(max_buy_price, self.abatement_cost_per_ton)#max buying price, if higher it is not profitable to buy
         
 
     def init_abatement_costs(self):
         abatement_costs = []
-        start_value=np.random.gamma(shape=2, scale=700)
+        start_value=np.random.gamma(shape=40, scale=700)
         variance_factor=np.random.uniform(0.5, 1.5)
         for variance in range(max(int(self.emission_rate*3), 1)):
             start_value += max(np.random.normal(scale=variance*variance_factor), 0)
@@ -83,7 +87,7 @@ class CompanyAgent:
         self.expected_deficit = int(self.expected_emission - self.allowance)
         #print(self.expected_deficit)
 
-    def update_market_position(self):
+    def update_market_position_simple(self):
         """
         post trade is necessary
         """
@@ -108,6 +112,33 @@ class CompanyAgent:
         else:
             self.state = "idle"
             self.count = 0
+
+    def update_market_position_advanced_training(self):
+        """
+        post trade is necessary
+        """
+
+        if self.expected_deficit > 0:
+            #buy or abate
+            if self.expected_market_price > self.abatement_cost_per_ton:
+                print("abate")
+                self.state = "idle"
+                self.count = 0
+                self.abatement_costs.pop(0)
+                self.emission_rate -= 1
+            else:
+                self.count = math.ceil(self.expected_deficit)
+                self.state = "buy"
+                self.trade_price = min(self.expected_market_price, self.max_buy_price)
+        elif self.expected_deficit <= -30 or (self.day > 360 and self.expected_deficit < - 10):
+            #sell
+            self.count = (-1)*math.ceil(self.expected_deficit) - 10
+            self.count = min(self.count, 10)
+            self.state = "sell"
+            self.trade_price = max(self.expected_market_price, self.min_sell_price)
+        else:
+            self.state = "idle"
+            self.count = 0
     
     def sell_allowance(self, price, trade_amount):
         self.allowance -= trade_amount
@@ -127,7 +158,7 @@ class CompanyAgent:
     def failed_buy(self):
         self.buy_counter -= self.count
 
-    def update_expected_market_price(self):
+    def update_expected_market_price(self, market_price):
         
         if self.state == "sell":
             if self.sale_counter > 0: #successful sales
@@ -142,17 +173,23 @@ class CompanyAgent:
             elif self.buy_counter < 0: #unsuccessful buys
                 if self.expected_market_price < self.max_buy_price: #only increase when max price was not used
                     self.expected_market_price += 1
+        elif self.state == 'idle' and self.day > 1:
+            if self.expected_market_price > market_price:
+                self.expected_market_price -= 1
+            elif self.expected_market_price < market_price:
+                self.expected_market_price += 1
+
 
         self.buy_counter = 0
         self.sale_counter = 0
         return
 
-    def update_agent(self):
+    def update_agent(self, market_price):
         """
         Update the agent.
         """
         self.day += 1
-        self.update_expected_market_price()
+        self.update_expected_market_price(market_price)
         self.update_emission_rate()
         self.update_abatements()
         self.track_emission()

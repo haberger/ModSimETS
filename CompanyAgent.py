@@ -51,11 +51,11 @@ class CompanyAgent:
 
     def init_abatement_costs(self):
         abatement_costs = []
-        start_value=np.random.gamma(shape=40, scale=700)
-        variance_factor=np.random.uniform(0.5, 1.5)
-        for variance in range(max(int(self.emission_rate*3), 1)):
+        start_value=np.random.gamma(shape=40, scale=400)
+        variance_factor=np.random.uniform(0.3, 3)
+        for variance in range(365):
             start_value += max(np.random.normal(scale=variance*variance_factor), 0)
-            abatement_costs.append(start_value)
+            abatement_costs.append(start_value/10)
         return abatement_costs
 
 
@@ -95,7 +95,6 @@ class CompanyAgent:
         if self.expected_deficit > 0:
             #buy or abate
             if self.expected_market_price > self.abatement_cost_per_ton:
-                print("abate")
                 self.state = "idle"
                 self.count = 0
                 self.abatement_costs.pop(0)
@@ -121,19 +120,19 @@ class CompanyAgent:
         if self.expected_deficit > 0:
             #buy or abate
             if self.expected_market_price > self.abatement_cost_per_ton:
-                print("abate")
                 self.state = "idle"
                 self.count = 0
                 self.abatement_costs.pop(0)
                 self.emission_rate -= 1
             else:
                 self.count = math.ceil(self.expected_deficit)
+                self.count = min(self.count, np.random.uniform(self.day/365, 1.3) * self.count)
                 self.state = "buy"
                 self.trade_price = min(self.expected_market_price, self.max_buy_price)
         elif self.expected_deficit <= -30 or (self.day > 360 and self.expected_deficit < - 10):
             #sell
             self.count = (-1)*math.ceil(self.expected_deficit) - 10
-            self.count = min(self.count, 10)
+            self.count = min(self.count, np.random.uniform(self.day/400, 0.99) * self.count)
             self.state = "sell"
             self.trade_price = max(self.expected_market_price, self.min_sell_price)
         else:

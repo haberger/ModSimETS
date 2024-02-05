@@ -1,27 +1,48 @@
 import numpy as np
 import math
 
+k = 365
+
 class CompanyAgent:
+    """The Company Agent class represents a company agent in the Emission Trading System (ETS) market.
+    Properties:
+        expected_emission (float): The expected emission over the course of the year.
+        allowance (float): The allowance for the year.
+        emission_rate (float): The emission rate (emission per day).
+        emission_rate_noise (float): The noise in the emission rate (emission per day). Sampled from a normal distribution.
+        total_emission (float): The total emission produced by the company so far.
+        day (int): The day of the year.
+        expected_deficit (float): The expected deficit of the company (expected emissions - allowance).
+        expected_market_price (float): The expected market price from the company's perspective.
+        sale_counter (int): The number of successful sales.
+        buy_counter (int): The number of successful buys.
+        count (int): The number of allowances to buy or sell.
+        state (str): The state of the company (buy, sell, or idle).
+        trade_price (float): The price at which the company is willing to trade.
+        abatement_costs (list): The abatement costs for the company (cost to permanently reduce emission rate by 1 ton per day).
+        abatement_cost_per_ton (float): The abatement cost per ton. If this cost is less than the expected CO2 price, the company will abate.
+        min_sell_price (float): The minimum price at which the company can sell the allowances.
+        max_buy_price (float): The maximum price at which the company can buy the allowances.
+        expected_emission_noise (float): Initial uncertainty in the expected emission.
+    """
     def __init__(self, expected_emission, initial_allowance, min_sell_price, max_buy_price, expected_emission_noise=0.1, emission_rate_noise=0.01, activate_abatement=True, advanced_trading=False):
+        """Initialize the Company Agent.
+        Args:
+            expected_emission (float): The expected emission over the course of the year.
+            initial_allowance (float): The initial allowance for the year.
+            min_sell_price (float): The minimum price at which the company can sell the allowances.
+            max_buy_price (float): The maximum price at which the company can buy the allowances.
+            expected_emission_noise (float): Initial uncertainty in the expected emission.
+            emission_rate_noise (float): The noise in the emission rate (emission per day).
+            activate_abatement (bool): Whether to activate abatement or not.
+            advanced_trading (bool): Whether to use advanced trading strategies or not.
         """
-        Initialize a Company Agent.
 
-        Parameters:
-        - expected_emission (float): Expected emission for the year.
-        - initial_allowance (float): Initial allowance for the agent.
-        - sell_price (float): Price at which the agent is willing to sell allowances.
-        - buy_price (float): Price at which the agent is willing to buy allowances.
-        """
-        self.expected_emission_noise = expected_emission_noise
+        self.expected_emission = expected_emission + np.random.normal(scale=expected_emission_noise) 
+        self.allowance = initial_allowance
+
+        self.emission_rate = (self.expected_emission) / 365.0   # Add some noise
         self.emission_rate_noise = emission_rate_noise
-
-        self.initial_exepected_emission = expected_emission
-        self.initial_allowance = initial_allowance
-
-        self.expected_emission = self.initial_exepected_emission
-        self.allowance = self.initial_allowance
-
-        self.emission_rate = (expected_emission + np.random.normal(scale=self.expected_emission_noise)) / 365.0   # Add some noise
 
         self.total_emission = 0
         self.day = 0
@@ -35,21 +56,28 @@ class CompanyAgent:
         self.state = "idle"
         self.trade_price = self.expected_market_price
 
-        self.abatement_costs = self.init_abatement_costs()      #cost to reduce rate by 1 ton -> 
+        self.abatement_costs = self.init_abatement_costs()  # cost to permanently reduce rate by 1 ton 
         if not activate_abatement:
             self.abatement_costs = [np.inf]
-        self.abatement_cost_per_ton = self.abatement_costs[0] / 365.0
+        self.abatement_cost_per_ton = float(np.inf)
 
         self.min_sell_price = min_sell_price
         self.max_buy_price = max_buy_price
+
         if advanced_trading:
             self.update_market_position = self.update_market_position_advanced_training
         else:
             self.update_market_position = self.update_market_position_simple
-        #self.max_buy_price = min(max_buy_price, self.abatement_cost_per_ton)#max buying price, if higher it is not profitable to buy
+    
         self.last_k_emissions = [] 
 
     def init_abatement_costs(self):
+        '''
+        Initialize the abatement costs for the company.
+        The initial abatement cost is generated using a gamma distribution. 
+        The following abatement costs are generated by adding a random normal noise to the previous abatement cost (which is clamped to 0).
+        Taking only positive values makes sure that the abatement costs increase over the number of reductions.
+        '''
         abatement_costs = []
         start_value=np.random.gamma(shape=2.5, scale=10000)
         variance_factor=np.random.uniform(0.1 , 100)
@@ -57,22 +85,11 @@ class CompanyAgent:
             start_value += max(np.random.normal(scale=variance*variance_factor) + np.random.uniform(0,1000), 0)
             abatement_costs.append(start_value)
         return abatement_costs
-    
-    def init_abatement_costs_old(self):
-        abatement_costs = []
-        start_value=np.random.gamma(shape=40, scale=400)
-        variance_factor=np.random.uniform(0.3, 3)
-        for variance in range(365):
-            start_value += max(np.random.normal(scale=variance*variance_factor), 0)
-            abatement_costs.append(start_value/10)
-        return abatement_costs
-
 
     def update_emission_rate(self):
         """
-        Update the emission rate in a stochastic way.
+        Update the emission rate. Models the emission rate as a Wiener process.
         """
-        # Update the emission rate with some stochastic noise
         self.emission_rate = max(0, self.emission_rate + np.random.normal(scale=self.emission_rate_noise))
 
     def track_emission(self):
@@ -81,24 +98,23 @@ class CompanyAgent:
         """
         self.total_emission += self.emission_rate
         self.last_k_emissions.append(self.emission_rate)
-        if len(self.last_k_emissions) > 10:
+        if len(self.last_k_emissions) > k:
             self.last_k_emissions.pop(0)
 
     def update_abatements(self):
         """
-        Update the abatements.
+        Update the abatement costs per ton for the company. It is calculated over the remaining days of the year.
         """
-        self.abatement_cost_per_ton = self.abatement_costs[0] / (366 - self.day) #first element is always the current abatement cost -> if taken pop
-        #self.max_buy_price = min(self.max_buy_price, self.abatement_cost_per_ton)
+        # The first element is always the current abatement cost -> if its taken, its popped
+        self.abatement_cost_per_ton = self.abatement_costs[0] / (366 - self.day) 
 
     def update_expected_emission(self):
         """
-        Update the expected emission for the year.
+        Update the expected emission for the company. Only the last k emissions are considered.
         """
         expected_emissions_last_k = sum(self.last_k_emissions)/len(self.last_k_emissions)*(365)
-        self.expected_emission = math.ceil((expected_emissions_last_k - 1e-9)) #
+        self.expected_emission = math.ceil((expected_emissions_last_k - 1e-9))
         self.expected_deficit = int(self.expected_emission - self.allowance)
-        #print(self.expected_deficit)
 
     def update_market_position_simple(self):
         """

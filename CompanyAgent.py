@@ -91,6 +91,9 @@ class CompanyAgent:
         Update the emission rate. Models the emission rate as a Wiener process.
         """
         self.emission_rate = max(0, self.emission_rate + np.random.normal(scale=self.emission_rate_noise))
+        # 3 percent chance that the emission rate is reduced by 1
+        # if np.random.uniform(0,1) < 0.02:
+        #     self.emission_rate += np.random.normal(scale = self.emission_rate_noise*8) #TODO maybe add bigger impacts
 
     def track_emission(self):
         """
@@ -110,15 +113,28 @@ class CompanyAgent:
 
     def update_expected_emission(self):
         """
-        Update the expected emission for the company. Only the last k emissions are considered.
+        Update the expected emission for the company based on previous emissions.
+        Emission of last 10 days and today have higher weight.
         """
-        expected_emissions_last_k = sum(self.last_k_emissions)/len(self.last_k_emissions)*(365)
-        self.expected_emission = math.ceil((expected_emissions_last_k - 1e-9))
+        
+        total_average = sum(self.last_k_emissions)/len(self.last_k_emissions)
+        average_last_10 = sum(self.last_k_emissions[-min(10, len(self.last_k_emissions)):])/min(10, len(self.last_k_emissions))
+
+        # higher weight for the last 10 days and the current emission rate
+        self.expected_emission = ((total_average + average_last_10 + self.last_k_emissions[-1])/3)*(365)
+
+        # handle potential float issues
+        self.expected_emission = math.ceil((self.expected_emission - 1e-9))
+
         self.expected_deficit = int(self.expected_emission - self.allowance)
 
     def update_market_position_simple(self):
         """
-        post trade is necessary
+        Update the market position of the company based on the expected deficit.
+
+        If the expected deficit is positive, the company will either instantly buy the missing allowances
+        or abate if cost is lower than the expected market price.
+        If the expected deficit is negative, the company will instantly sell the surplus allowances.
         """
 
         if self.expected_deficit > 0:
@@ -143,7 +159,10 @@ class CompanyAgent:
 
     def update_market_position_advanced_training(self):
         """
-        post trade is necessary
+        Update the market position of the company based on the expected deficit with advanced trading strategies.
+
+        If the expected deficit is positive, the company will either instantly buy a fraction of the missing allowances
+        to spread out the trades (less risk to get a bad market price) or abate if cost is lower than the expected market price.
         """
 
         if self.expected_deficit > 0:
@@ -155,38 +174,67 @@ class CompanyAgent:
                 self.emission_rate -= 1
             else:
                 self.count = math.ceil(self.expected_deficit)
-                self.count = min(self.count, np.random.uniform(self.day/365, 1.3) * self.count)
+
+                # Dont buy everything at once, closer to the end of the year => buy bigger fractions
+                # "Time in the market beats timing the market" or something like that
+                self.count = np.ceil(np.random.uniform(max(self.day/358, 1), 1) * self.count)
                 self.state = "buy"
                 self.trade_price = min(self.expected_market_price, self.max_buy_price)
-        elif self.expected_deficit <= -30 or (self.day > 360 and self.expected_deficit < - 10):
-            #sell
-            self.count = (-1)*math.ceil(self.expected_deficit) - 10
-            self.count = min(self.count, np.random.uniform(self.day/400, 0.99) * self.count)
-            self.state = "sell"
-            self.trade_price = max(self.expected_market_price, self.min_sell_price)
+        
         else:
-            self.state = "idle"
-            self.count = 0
+            # keep percentage of expected emission as risk buffer, at the end of the year the buffer is reduced
+            risk_buffer = self.expected_emission * 0.01 if self.day < 351 else self.expected_emission * (365-self.day)/1500
+
+            if self.expected_deficit <= -risk_buffer:
+                #sell
+                self.count = (-1)*math.ceil(self.expected_deficit) - risk_buffer
+                self.count = np.floor(np.np.random.uniform(max(self.day/358,1), 1) * self.count)
+                self.state = "sell"
+                self.trade_price = max(self.expected_market_price, self.min_sell_price)
+
+            else:
+                self.state = "idle"
+                self.count = 0
     
-    def sell_allowance(self, price, trade_amount):
+    def sell_allowance(self, trade_amount):
+        """
+        reduces the allowance and update trade count by the traded amount
+        """
+
         self.allowance -= trade_amount
         self.count -= trade_amount
+        #track successful sale
         self.sale_counter += trade_amount
 
 
-    def buy_allowance(self, price, trade_amount):
+    def buy_allowance(self, trade_amount):
+        """
+        increases the allowance and update the trade count by the traded amount
+        """
         self.allowance += trade_amount
         self.count -= trade_amount
+        #track successful buy
         self.buy_counter += trade_amount
         
 
     def failed_sell(self):
+        '''
+        tracks failed sales
+        '''
         self.sale_counter -= self.count
     
     def failed_buy(self):
+        '''
+        tracks failed buys
+        '''
         self.buy_counter -= self.count
 
     def update_expected_market_price(self, market_price):
+        """
+        Update the expected market price based on the trades of the previous day.
+        If the company had more successful than unsuccessful sales, the expected market price increases and vice versa.
+        If the company had more successful than unsuccessful buys, the expected market price decreases and vice versa.
+        """
         
         if self.state == "sell":
             if self.sale_counter > 0: #successful sales
@@ -215,6 +263,8 @@ class CompanyAgent:
     def update_agent(self, market_price):
         """
         Update the agent.
+
+        Update market price, emission rate, abatement costs per ton, past emissions, expected emission, and market position in that order.
         """
         self.day += 1
         self.update_expected_market_price(market_price)
@@ -226,21 +276,8 @@ class CompanyAgent:
 
     def __lt__(self, other):
         """
-        Compare two Company Agents.
-        """
-        # return randomly true or false
-        return np.random.choice([True, False])
+        Comparison operator for the company agent.
 
-    def __str__(self):
+        Randomly returns True or False so no company has a bias during sorting.
         """
-        String representation of the Company Agent.
-        """
-        return f"Company Agent - Initial Expected Emission: {self.initial_exepected_emission}, Initial Allowance: {self.initial_allowance}, " \
-               f"Sell Price: {self.sell_price}, Buy Price: {self.buy_price}, Emission Rate: {self.emission_rate} " \
-               f"Total Emission: {self.total_emission}, Expected Emission: {self.expected_emission}, Allowance: {self.allowance}"
-    
-    def get_sell_price(self):
-        return self.sell_price
-    
-    def get_buy_price(self):
-        return self.buy_price
+        return np.random.choice([True, False])

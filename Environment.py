@@ -131,8 +131,8 @@ class Environment:
         price = trade_price
 
         # update the agent allowances and selling/buying counts
-        buyer.buy_allowance(price, trade_amount)
-        seller.sell_allowance(price, trade_amount)
+        buyer.buy_allowance(trade_amount)
+        seller.sell_allowance(trade_amount)
 
         self.trade_history_daily.append((price, trade_amount))
         self.trade_hist_dict["day"].append(self.agents[0].day)

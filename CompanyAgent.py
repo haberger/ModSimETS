@@ -47,9 +47,18 @@ class CompanyAgent:
         else:
             self.update_market_position = self.update_market_position_simple
         #self.max_buy_price = min(max_buy_price, self.abatement_cost_per_ton)#max buying price, if higher it is not profitable to buy
-        
+        self.last_k_emissions = [] 
 
     def init_abatement_costs(self):
+        abatement_costs = []
+        start_value=np.random.gamma(shape=2.5, scale=10000)
+        variance_factor=np.random.uniform(0.1 , 100)
+        for variance in range(365):
+            start_value += max(np.random.normal(scale=variance*variance_factor) + np.random.uniform(0,1000), 0)
+            abatement_costs.append(start_value)
+        return abatement_costs
+    
+    def init_abatement_costs_old(self):
         abatement_costs = []
         start_value=np.random.gamma(shape=40, scale=400)
         variance_factor=np.random.uniform(0.3, 3)
@@ -71,6 +80,9 @@ class CompanyAgent:
         Track the emissions produced by the company.
         """
         self.total_emission += self.emission_rate
+        self.last_k_emissions.append(self.emission_rate)
+        if len(self.last_k_emissions) > 10:
+            self.last_k_emissions.pop(0)
 
     def update_abatements(self):
         """
@@ -83,7 +95,8 @@ class CompanyAgent:
         """
         Update the expected emission for the year.
         """
-        self.expected_emission = math.ceil((self.total_emission/self.day * 365)-1e-9) #TODO: maybe just look at past n days, might have more relevance
+        expected_emissions_last_k = sum(self.last_k_emissions)/len(self.last_k_emissions)*(365)
+        self.expected_emission = math.ceil((expected_emissions_last_k - 1e-9)) #
         self.expected_deficit = int(self.expected_emission - self.allowance)
         #print(self.expected_deficit)
 

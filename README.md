@@ -17,9 +17,11 @@ conda activate modsim
 ## Repository structure
 The repository is structured as follows:
 - ```data```: contains the data used for the analysis and for initializing the agents of the EU model.
+- ```data_preparation_utils.py```: util functions for loading and preparation of EU ETS data. 
 - ```CompanyAgent.py```: implementation of the agent representing a company in the EU ETS.
 - ```Environment.py```: implementation of the environment, which models the market behavior. 
 - ```modsim.ipynb```: Jupyter notebook containing the simulation code and results.
+- ```eu_ets_data_analysis.ipynb```: Jupyter notebook containing data exploration of the EU ETS data.
 
 ## Running the code
 To run the simulation execute the ```modsim.ipynb``` notebook. Make sure to choose the correct kernel (```modsim```) when running the notebook.

@@ -64,8 +64,6 @@ class CompanyAgent:
         self.min_sell_price = min_sell_price
         self.max_buy_price = max_buy_price
 
-        self.min_sell_price_reduction = min_sell_price/65
-
         if advanced_trading:
             self.update_market_position = self.update_market_position_advanced_trading
         else:
@@ -179,7 +177,7 @@ class CompanyAgent:
 
                 # Dont buy everything at once, closer to the end of the year => buy bigger fractions
                 # "Time in the market beats timing the market" or something like that
-                self.count = np.ceil(np.random.uniform(max(self.day/301, 1), 1) * self.count)
+                self.count = np.ceil(np.random.uniform(min(self.day/301, 1), 1) * self.count)
                 self.state = "buy"
                 self.trade_price = min(self.expected_market_price, self.max_buy_price)
         
@@ -190,16 +188,13 @@ class CompanyAgent:
             if self.expected_deficit <= -risk_buffer:
                 #sell
                 self.count = (-1)*math.ceil(self.expected_deficit) - risk_buffer
-                self.count = np.floor(np.random.uniform(max(self.day/301,1), 1) * self.count)
+                self.count = np.floor(np.random.uniform(min(self.day/301,1), 1) * self.count)
                 self.state = "sell"
                 self.trade_price = max(self.expected_market_price, self.min_sell_price)
 
             else:
                 self.state = "idle"
                 self.count = 0
-        
-        if self.day > 300:
-            self.min_sell_price -= self.min_sell_price_reduction
     
     def sell_allowance(self, trade_amount):
         """

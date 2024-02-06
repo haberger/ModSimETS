@@ -79,8 +79,8 @@ class CompanyAgent:
         Taking only positive values makes sure that the abatement costs increase over the number of reductions.
         '''
         abatement_costs = []
-        start_value=np.random.gamma(shape=2.5, scale=10000)
-        variance_factor=np.random.uniform(0.1 , 100)
+        start_value = np.random.gamma(shape=2.5, scale=30000)
+        variance_factor = np.random.uniform(0.1, 100)
         for variance in range(365):
             start_value += max(np.random.normal(scale=variance*variance_factor) + np.random.uniform(0,1000), 0)
             abatement_costs.append(start_value)
@@ -116,12 +116,12 @@ class CompanyAgent:
         Update the expected emission for the company based on previous emissions.
         Emission of last 10 days and today have higher weight.
         """
-        
         total_average = sum(self.last_k_emissions)/len(self.last_k_emissions)
         average_last_10 = sum(self.last_k_emissions[-min(10, len(self.last_k_emissions)):])/min(10, len(self.last_k_emissions))
 
         # higher weight for the last 10 days and the current emission rate
-        self.expected_emission = ((total_average + average_last_10 + self.last_k_emissions[-1])/3)*(365)
+        self.expected_emission_rate = (total_average + average_last_10 + self.last_k_emissions[-1])/3 
+        self.expected_emission = self.total_emission + self.expected_emission_rate * (365 - self.day)
 
         # handle potential float issues
         self.expected_emission = math.ceil((self.expected_emission - 1e-9))

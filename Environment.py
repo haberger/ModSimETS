@@ -108,8 +108,8 @@ class Environment:
         '''
         Plots the supply and demand curves and the efficient market price.
         '''
-        plt.figure()
-        plt.title("Supply and Demand Curves")
+        plt.figure(figsize=(5, 3))
+        plt.title(f"Supply and Demand Curves, Day: {self.agents[0].day}")
         plt.step(demands[:, 1], demands[:, 0], label="Demand")
         plt.step(offers[:, 1], offers[:, 0], label="Supply")
         plt.axhline(self.market_price, color="black",
